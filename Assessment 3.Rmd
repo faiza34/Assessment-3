@@ -1,0 +1,359 @@
+---
+title: "Assessment 3- Group 23"
+author: "Syeda Faiza Hussain-s4647284 Ritu Chopra -s464853"
+date: "10/09/2021"
+output:
+  word_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE)
+```
+
+```{r}
+#install.packages("tidymodels")
+#install.packages("ranger")
+library(tidymodels)
+library(ranger)
+library(tidyverse)
+library(knitr)
+
+```
+
+## INFORMATION ABOUT THE DATASET [The Food Consumption Data]
+
+This dataset addressed what food category is consumed in which countries and what is the carbon dioxide percentage on the consumption of the given food category. The main problem which the dataset shows is the emission of carbon dioxide in the consumption of different foods. There are many harmful effects of carbon dioxide on humans and it can create many problems such as headaches, dizziness, increased blood pressure, difficulty in breathing etc. 
+
+[Reference: Wisconson Department of Health Science, n.d. Carbon Dioxide, Available from: https://www.dhs.wisconsin.gov/chemical/carbondioxide.htm#:~:text=Exposure%20to%20CO2%20can%20produce,coma%2C%20asphyxia%2C%20and%20convulsions.]
+
+The purpose of the dataset is to identify which countries contributes highest carbon emission in which food category and at what percentage. By analyzing the situation, we can control the root cause of the problem by suggesting alternative solutions. In this business report findings, the first step is to load the dataset in form of a csv file by using the below code:
+
+---
+
+### Load the Dataset
+
+```{r}
+
+food <- read_csv("https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2020/2020-02-18/food_consumption.csv")
+
+food %>% 
+  head()
+
+# I have used the head function to display the dataset in the input data frame. 
+
+```
+
+After loading the dataset, we have to cleansed our dataset variables.
+
+---
+
+## DATA CLEANSING
+
+Data cleansing is used to transform raw data into consistent data for analysis and improves the realdibility of the dataset. 
+
+[Reference: Data Science & Analytics Daily, n.d. Data Cleaning Using R, Available from: https://dataanalyticsedge.com/2018/05/02/data-cleaning-using-r/]
+
+In order to make our data more tidyr and organized, we will do some cleaning of our dataset before starting the analysis of the data.
+
+#### 1.  Application of str_replace
+
+In data cleansing, the first thing is to change all the uppercase variables to lowercase but we will skip this step as all our 4 variables are already in lowercase. In the second step, we have to replace the matched patterns in a string by using str_replace. 
+
+[Reference: RDocumentation, n.d. str_replace: Replace matched patterns in a string, Available from: https://www.rdocumentation.org/packages/stringr/versions/1.4.0/topics/str_replace]
+
+For any spaces " " between the names of variable, we have to change it with "_", by using the following code:
+
+```{r}
+
+names(food)<- str_replace(names(food)," ", "_")
+
+
+```
+
+#### 2. Change the Name of the Variables
+
+Next step is to change the name of variables. There are two variables named as- co2_emmission and consumption which are difficult to understand. We have changed the name of the co2_emmission to - "carbon_emission" and consumption to "food_consume". This will make our data more readable and easy to comprehend. The other 2 variable names "country" and "food_category" are not difficult, so we will only changed these two variables by using the following code:
+
+```{r}
+food <- food %>% 
+  setNames(c("country", "food_category", "food_consume", "carbon_emission"))
+
+food
+
+```
+
+#### 3. Change Character Variables to Factor  
+
+For better analysis of data, it is very important to replace the "character" variables into a "factor". We have to do this by using the following code:
+
+```{r}
+
+food <- food %>% 
+  mutate_if(is.character, factor)
+
+```
+
+I have used skim function before asking questions to understand what is in the dataset. The skim function shows that their are 130 unique countries in the dataset with 11 unique food categories.
+
+```{r}
+
+library(skimr)
+
+skim(food)
+
+```
+
+---
+
+## QUESTIONS TO BE ASKED
+
+From all of the 11 food categories present in the dataset , we know the:
+
+*  food categories in countries (food_category: either 'Beef', 'Eggs', 'Fish', 'Lamb & Goat', 'Milk-inc.cheese', 'Nuts inc.Peanut Butter', 'Pork', 'Poultry', 'Rice', 'Soybeans').
+*  highest number of food consumption in some countries (food_consume), and
+*  highest number of carbon emission in some countries (carbon_emission).
+
+**Major Question:** Can we predict the 'carbon_emission' of the food by knowing their 'food_consume' and 'food_category'?
+
+***Subquestions:***
+
+Q.1 How many different types of 'food_category' are there? 
+
+Q.2 Which countries consume the maximum amount of each 'food_category'? 
+
+Q.3 Which country used highest amount of 'carbon_emission' per 'food_category'? 
+
+Q.4 What is the relation between 'food_consume' and 'carbon_emission'? 
+
+Q.5 Is the relation between the 'food_consume' and 'carbon_emission' dependent on 'food_category'? 
+
+---
+
+## DESCRIPTIVE ANALYSIS OF THE DATASET
+
+In the descriptive analysis, we have explained the data in order to find answers to the above mentioned subquestions.
+
+### Q1. How many different types of food_category are there?
+
+```{r}
+food %>% 
+  count(food_category) %>% 
+  kable()
+
+```
+We can see from this that all 130 countries used all of the food categories. Now, we have the different types of food categories in the dataset. We have to find which country used which food category in the maximum amount.
+
+### Q.2 Which countries consume the maximum amount of each food_category?
+
+```{r}
+
+food %>% 
+  group_by(food_category) %>%
+  select(country, food_category, food_consume) %>% 
+  filter(food_consume==max(food_consume)) %>%
+  ungroup() %>% 
+  arrange(desc(food_consume)) %>% 
+  kable()
+
+```
+
+After running the code, we can see that Finland consumes Milk - inc. cheese at 430.76 and Tunisia consume Wheat and Wheat Products at 197.50. The fish is consumed at 179.71 percentage in Maldives. The lowest consumption is of Soybeans at 16.95 in Taiwan. ROC and Eggs at 19.15 in Japan. From this data, we can understand that what food categories are dominating in which country but we did not know how their consumption is impacting the environment. To answer this, we will use our next code. 
+
+### Q.3 Which country used highest amount of carbon_emission per food_category?
+
+```{r}
+
+food %>% 
+  group_by(food_category) %>% 
+  select(country, food_category, food_consume, carbon_emission) %>% 
+  filter(carbon_emission==max(carbon_emission)) %>%
+  arrange(desc(carbon_emission)) %>% 
+  ungroup() %>% 
+  kable
+
+```
+From this data, we can see that even the food consumption is low in a country, the carbon emission is high. We can see from the above table that Beef whose consumption is low at "55.48" as compared to other food categories emits the largest amount of carbon dioxide gas in the atmosphere at 1712.00. While the Soybeans emits the lowest amount of carbon dioxide and also consumes at the lowest rate. Now, we have to find the relation between food_consume and carbon_emission by the use of our data analysis and data visualization.
+
+
+### Q.4 What is the relation between food_consume and carbon_emission?
+
+```{r}
+
+food %>%
+  ggplot(aes(x=food_consume, y=carbon_emission, main= "Scatterplot")) +
+  geom_point() +
+  geom_smooth(formula = y ~ x, method = "lm", se= FALSE) +
+  labs(x="Food Consume", y="Carbon Emission", title="Data Visualization of Food Consumption", caption=" Scatterplot of Food Consumption")
+
+```
+
+In the above plot, we have done linear regression between two numerical variables to find the relationship between them. We can observe that the value of food consume depends on the carbon emission. We can see from our study that the highest food consumed is "Milk - inc. cheese" in Finland but the country did not emit the highest carbon emission. Compare to that, "Beef" maximum consumption is done in Argentina and it emits the highest number of carbon dioxide emission. This clearly shows that the beef emits a lot of carbon dioxide in the atmosphere. The linear regression model shows the lowest food consumption as at "16.95" which is in Taiwan.ROC for the food category "Soybeans". The slope of the line shows a positive relation between the food consume and the carbon emission. 
+
+### Q.5 Is the relation between the food_consume and carbon_emission dependent on food_category?
+
+Now, we have to see that the above positive relation is dependent on the food_category used.
+
+```{r}
+
+food %>%
+  ggplot(aes(food_consume, carbon_emission, colour = food_category)) +
+  geom_point() +
+  geom_smooth(formula = y ~ x, method = "lm", se= FALSE) +
+  scale_color_viridis_d(option = "plasma", end = .7) +
+  labs(x = "Food Consume", y = "Carbon Emission", colour = "Food Category", title = "Dependence of Carbon Emission on Food Category")
+```
+
+From the above plot, we can see that the slopes shows a positive relation between carbon emission and food category. Only the food category "Beef" has the highest carbon emission while the soybeans and wheat products have the lowest carbon emission. "Beef" is consumed at just "55.48" in Argentina but it emits the highest number of carbon dioxide emission at "1712.00". After Beef, the "Lamb & Goat"has the highest carbon emission at "739.62" but lower food consumption at "21.12". We can predict that the meat products emits more carbon emissions in the environment as compare to dairy products and grains. This clearly means, that the carbon emission depends on the food category even if the food category is used in low consumption, it can give high carbon emission. 
+
+---
+
+## PREDICTIVE ANALYSIS
+
+With our descriptive analysis, we have figure out that the carbon_emission of the food can be predicted by knowing the food_consume and food_category. Our next step is to build a model to make these predictions. For this, we have used the Tidymodels package for predicting our analysis. 
+
+### Step 1: Split the Dataset into Training & Testing Datasets.
+
+We used this step to separate the data into training and testing sets to evaluate the models data mining. During this process, by default 3/4 of the data is used for training while a small portion is used for testing. We do the training when we want to implement the machine learning model and the testing to evaluate the performance of the model. In this phase, we split our dataset food and then use the training and testing procedure to evaluate the model. 
+
+[Reference: Microsoft, n.d.Training and Testing Data Sets, Available from: https://docs.microsoft.com/en-us/analysis-services/data-mining/training-and-testing-data-sets?view=asallproducts-allversions&viewFallbackFrom=sql-server-2017]
+
+
+```{r}
+food_split <- initial_split(food)
+food_train <- training(food_split)
+food_test <- testing(food_split)
+
+```
+
+
+## Step 2: Pre-process the Data.
+
+In order to prepare our data for machine learning models, we do data pre-processing. It is also taken as an initial phase of Machine Learning. 
+
+[Reference: Juma, S., 2021. Data Preprocessing in R, Available from: https://www.section.io/engineering-education/data-preprocessing-in-r/]
+
+
+### 2.1 Set the Recipe & Get the Ingredients - recipe()
+
+The recipe package in the tidymodels is used in data pre-processing to start and execute data transformation after cooking actions and make interface user friendly. The recipe() means to start a new set of transformation and is used for modelling. 
+
+[Reference: Ruiz, E., 2019. A Gentle Introduction to tidymodels, Available from: https://rviews.rstudio.com/2019/06/19/a-gentle-intro-to-tidymodels/]
+
+The first thing in pre-processing of data is to set the recipe. As our dataset has only 4 variables and all of them are important to evaluate the performance, so we have used all four variables for modelling of our dataset 'food'. 
+
+As we are predicting the carbon_emission of the food, carbon_emission is our Output variable and the others are our Input variables also known as Predictors. 
+
+```{r}
+food_recipe <- recipe(carbon_emission ~ ., data = food_train) 
+
+summary(food_recipe)
+
+```
+We can see from the above code that we have 3 predictors and one outcome. 
+
+### 2.2 Write the Recipe steps - step_xxx()
+
+In data pre-processing, the quality of data determines the success of the model evaluated. There are some transformations which are important in our dataset 'food'. Each type of data transformation is a step and we use the step_ function to correspond to the dataset.
+
+In our dataset, we have 2 numeric values and in order to avoid the outliers, we have to normalize it by using codes [step_center() & step_scale()] which are also known as "Centering" & "Scalling". For the removal of any closely related numeric variable, we will use the code [step_corr()] which is also termed as (=correlated). 
+
+```{r}
+
+food_recipe <- food_recipe %>%
+  
+step_center(all_numeric(), -all_outcomes()) %>% 
+# The code step_center is used to normalize numeric data with a mean of zero.
+  
+step_scale(all_numeric(), -all_outcomes()) %>% 
+#This code normalizes numeric data and considers to have standard deviation of one.
+  
+step_corr(all_numeric())
+#This creates a specification of a recipe step that will potentially remove variables that have large absolute correlations with other variables.
+
+```
+
+### 2.3 Get Ready with the Prep - prep()
+
+After setting and writing the recipe, we used the prep() function to execute the transformations of the data typically provided in the training set.
+
+```{r}
+
+food_prep <- prep(food_recipe, training = food_train)
+
+```
+
+### 2.4 Bake the Recipe - bake()
+
+By putting together the recipe(), prep(), and step functions, we create a recipe object. Here, we will used the training function to extract the data which was previously split into dataset by using the bake() function. 
+
+
+```{r}
+
+food_bake <- bake(food_prep, food_train)
+
+food_bake
+
+```
+
+This has given the whole glimpse of the dataset. The bake() function used the trained recipe and then create a design matrix of the dataset. We can see in the above code, that the food_consume and carbon_emission values have different output from the initial dataset. 
+
+[Reference: RDocumentation, n.d. bake: Apply a Trained Data Recipe, Available from: https://www.rdocumentation.org/packages/recipes/versions/0.1.16/topics/bake]
+
+## Step 3: Build a Model
+
+After preparing and baking the recipe, the next step is to build a mode. The model can be build by using three important steps:
+
+i. **Mode**: [We can used Regression or Classification mode to build model]
+ii. **Model type**: [In model type, we can used Linear Regression also known as linear_reg or Random Forest also taken as rand_forest() for models]
+iii. **Engine**: [For models, we can use "lm" which is linear method or "ranger" which is Random Forest as engine]
+
+As our output variable is numeric value, we will use Regression mode with linear_reg() as model type and lm as Engine.
+
+[Reference: Tidymodels, n.d. How to build a parsnip model, Available from: https://www.tidymodels.org/learn/develop/models/]
+
+### 3.1 Set up the Model [Mode, Model Type & Engine]
+
+```{r}
+
+model1 <- linear_reg() %>%
+  set_mode("regression") %>%
+  set_engine("lm")
+
+model1
+
+```
+
+### 3.2 Fit the Model
+
+After setting up the model, the next step is to fit the model. We used the fit() function in the following code:
+
+```{r}
+
+model1_fitted <- model1 %>%
+  fit(carbon_emission ~ food_consume * food_category, data = food_bake)
+
+summary(model1_fitted)
+
+```
+## Step 4: Create a Workflow
+
+After building the model, we create a workflow to save the recipe and the model altogether. This workflow can be used in the future for predicting any new dataset.
+
+```{r}
+
+workflow <- workflow() %>%
+  add_recipe(food_recipe) %>%
+  add_model(model1)
+  
+workflow
+
+```
+
+---
+
+This business report will helped us in understanding the problems addressed in the whole report. The dataset selected is critical to the current situation of the world which is the impact of carbon emissions on the world and the only solution to control the issue is by minimizing the use of greenhouse gas emissions for livestock. The foods which have the largest carbon footprint should be replaced by plant based alternatives. In that way, we can reduce impact of carbon emissions on our environment.
+
+[Reference: Gustin, 2019. As Beef Comes Under Fire for Climate Impacts, the Industry Fights Back, Available from: https://insideclimatenews.org/news/21102019/climate-change-meat-beef-dairy-methane-emissions-california/]
+
+
